@@ -8,7 +8,7 @@
 #define mainBootloaderTable               (*(MainBootloaderTable_t **) \
                                            (BTL_MAIN_BOOTLOADER_TABLE_BASE))
 #define Pp(X) app_log(#X ": %p\n",X)
-#define Plx(X) app_log(#X ": %lx\n",X)
+#define Plx(X) app_log(#X ": 0x%lx\n",X)
 #define PCAP(X) app_log("  " #X ": %d\n",(mainBootloaderTable->capabilities & (X)) == X);
 
 void show_bootloader(void)
@@ -28,12 +28,20 @@ void show_bootloader(void)
   PCAP(BOOTLOADER_CAPABILITY_ENFORCE_UPGRADE_ENCRYPTION);
   PCAP(BOOTLOADER_CAPABILITY_ENFORCE_SECURE_BOOT);
   PCAP(BOOTLOADER_CAPABILITY_BOOTLOADER_UPGRADE);
+#if defined(BOOTLOADER_CAPABILITY_GBL)
   PCAP(BOOTLOADER_CAPABILITY_GBL);
+#endif
+#if defined(BOOTLOADER_CAPABILITY_GBL_SIGNATURE)
   PCAP(BOOTLOADER_CAPABILITY_GBL_SIGNATURE);
+#endif
+#if defined(BOOTLOADER_CAPABILITY_GBL_ENCRYPTION)
   PCAP(BOOTLOADER_CAPABILITY_GBL_ENCRYPTION);
+#endif
   PCAP(BOOTLOADER_CAPABILITY_ENFORCE_CERTIFICATE_SECURE_BOOT);
   PCAP(BOOTLOADER_CAPABILITY_ROLLBACK_PROTECTION);
+#if defined(BOOTLOADER_CAPABILITY_PERIPHERAL_LIST)
   PCAP(BOOTLOADER_CAPABILITY_PERIPHERAL_LIST);
+#endif
   PCAP(BOOTLOADER_CAPABILITY_STORAGE);
   PCAP(BOOTLOADER_CAPABILITY_COMMUNICATION);
   Pp(mainBootloaderTable->init);
@@ -45,11 +53,15 @@ void show_bootloader(void)
   Pp(mainBootloaderTable->parseImageInfo);
   Pp(mainBootloaderTable->parserContextSize);
   Pp(mainBootloaderTable->remainingApplicationUpgrades);
+#if defined(BOOTLOADER_CAPABILITY_PERIPHERAL_LIST)
   Pp(mainBootloaderTable->getPeripheralList);
   Pp(mainBootloaderTable->getUpgradeLocation);
+#endif
   uint32_t rc;
+#if(0)
   rc = bootloader_init();
   app_log("bootloader_init() returned 0x%lx\n",rc);
+#endif
   BootloaderInformation_t info;
   BootloaderStorageInformation_t storageInfo;
   BootloaderStorageSlot_t slot;
@@ -61,7 +73,11 @@ void show_bootloader(void)
       for(uint32_t i = 0; i < storageInfo.numStorageSlots; i++) {
           rc = bootloader_getStorageSlotInfo(i, &slot);
           app_assert(0 == rc,"bootloader_getStorageSlotInfo(%ld) returns 0x%lx",i, rc);
-          app_log_info("Bootloader storage slot: 0x%08lx - 0x%08lx\n",slot.address, slot.address+slot.length);
+          rc = bootloader_verifyImage(slot.address, NULL);
+          app_log_info("Bootloader storage slot: 0x%08lx - 0x%08lx, %s valid image\n",
+                       slot.address,
+                       slot.address+slot.length,
+                       (rc)?"Contains":"Does not contain");
       }
   }
 }
