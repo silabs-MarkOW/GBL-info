@@ -3,13 +3,27 @@
 #include "nvm3_default.h"
 #include "btl_interface.h"
 #include "btl_interface_storage.h"
+#include "btl_interface_parser.h"
 #include "em_core.h"
+#include <string.h>
+#include <stdio.h>
 
 #define mainBootloaderTable               (*(MainBootloaderTable_t **) \
                                            (BTL_MAIN_BOOTLOADER_TABLE_BASE))
 #define Pp(X) app_log(#X ": %p\n",X)
 #define Plx(X) app_log(#X ": 0x%lx\n",X)
 #define PCAP(X) app_log("  " #X ": %d\n",(mainBootloaderTable->capabilities & (X)) == X);
+
+bool isEmpty(uint32_t start, uint32_t length) {
+  size_t word_count = length >> 2;
+  uint32_t *words = (uint32_t *)start;
+  for(size_t index = 0; index < word_count; index++) {
+      if(0xffffffff != words[index]) {
+          return false;
+      }
+  }
+  return true;
+}
 
 void show_bootloader(void)
 {
@@ -58,10 +72,9 @@ void show_bootloader(void)
   Pp(mainBootloaderTable->getUpgradeLocation);
 #endif
   uint32_t rc;
-#if(0)
   rc = bootloader_init();
   app_log("bootloader_init() returned 0x%lx\n",rc);
-#endif
+  if(rc) return;
   BootloaderInformation_t info;
   BootloaderStorageInformation_t storageInfo;
   BootloaderStorageSlot_t slot;
@@ -71,13 +84,23 @@ void show_bootloader(void)
       bootloader_getStorageInfo(&storageInfo);
       app_log_info("Bootloader storage: numStorageSlots:%ld\n",storageInfo.numStorageSlots);
       for(uint32_t i = 0; i < storageInfo.numStorageSlots; i++) {
+          char status[32] = "unknown";
           rc = bootloader_getStorageSlotInfo(i, &slot);
           app_assert(0 == rc,"bootloader_getStorageSlotInfo(%ld) returns 0x%lx",i, rc);
-          rc = bootloader_verifyImage(slot.address, NULL);
-          app_log_info("Bootloader storage slot: 0x%08lx - 0x%08lx, %s valid image\n",
+          if(isEmpty(slot.address, slot.length)) {
+              strcpy(status,"empty");
+          } else {
+              rc = bootloader_verifyImage(i, NULL);
+              if(BOOTLOADER_OK == rc) {
+                  strcpy(status, "valid image");
+              } else {
+                sprintf(status,"invalid: 0x%08lx",rc);
+              }
+          }
+          app_log_info("Bootloader storage slot: 0x%08lx - 0x%08lx,: %s\n",
                        slot.address,
                        slot.address+slot.length,
-                       (rc)?"Contains":"Does not contain");
+                       status);
       }
   }
 }
